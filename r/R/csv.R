@@ -77,12 +77,15 @@
 #' `col_names`, and the CSV file has a header row that would otherwise be used
 #' to idenfity column names, you'll need to add `skip = 1` to skip that row.
 #'
-#' @param file A character file name or URI, `raw` vector, an Arrow input stream,
-#' or a `FileSystem` with path (`SubTreeFileSystem`).
+#' @param file A character file name or URI, literal data (either a single string or a [raw] vector),
+#' an Arrow input stream, or a `FileSystem` with path (`SubTreeFileSystem`).
+#'
 #' If a file name, a memory-mapped Arrow [InputStream] will be opened and
 #' closed when finished; compression will be detected from the file extension
 #' and handled automatically. If an input stream is provided, it will be left
 #' open.
+#'
+#' To be recognised as literal data, the input must be wrapped with `I()`.
 #' @param delim Single character used to separate fields within a record.
 #' @param quote Single character used to quote strings.
 #' @param escape_double Does the file escape quotes by doubling them?
@@ -154,6 +157,10 @@
 #'   tf,
 #'   col_types = schema(x = timestamp(unit = "us", timezone = "UTC"))
 #' )
+#'
+#' # Read directly from strings with `I()`
+#' read_csv_arrow(I("x,y\n1,2\n3,4"))
+#' read_delim_arrow(I(c("x y", "1 2", "3 4")), delim = " ")
 read_delim_arrow <- function(file,
                              delim = ",",
                              quote = '"',
@@ -198,6 +205,15 @@ read_delim_arrow <- function(file,
     )
   }
 
+  if (inherits(file, "AsIs")) {
+    if (is.raw(file)) {
+      # If a raw vector is wrapped by `I()`, we need to unclass the `AsIs` class to read the raw vector.
+      file <- unclass(file)
+    } else {
+      file <- charToRaw(paste(file, collapse = "\n"))
+    }
+  }
+
   if (!inherits(file, "InputStream")) {
     compression <- detect_compression(file)
     file <- make_readable_file(file)
@@ -207,6 +223,7 @@ read_delim_arrow <- function(file,
     }
     on.exit(file$close())
   }
+
   reader <- CsvTableReader$create(
     file,
     read_options = read_options,
@@ -325,6 +342,18 @@ CsvTableReader$create <- function(file,
                                   convert_options = CsvConvertOptions$create(),
                                   ...) {
   assert_is(file, "InputStream")
+
+  if (is.list(read_options)) {
+    read_options <- do.call(CsvReadOptions$create, read_options)
+  }
+
+  if (is.list(parse_options)) {
+    parse_options <- do.call(CsvParseOptions$create, parse_options)
+  }
+
+  if (is.list(convert_options)) {
+    convert_options <- do.call(CsvConvertOptions$create, convert_options)
+  }
 
   if (!(tolower(read_options$encoding) %in% c("utf-8", "utf8"))) {
     file <- MakeReencodeInputStream(file, read_options$encoding)
@@ -487,7 +516,7 @@ CsvWriteOptions$create <- function(include_header = TRUE, batch_size = 1024L, nu
   )
 }
 
-readr_to_csv_read_options <- function(skip = 0, col_names = TRUE, col_types = NULL) {
+readr_to_csv_read_options <- function(skip = 0, col_names = TRUE) {
   if (isTRUE(col_names)) {
     # C++ default to parse is 0-length string array
     col_names <- character(0)

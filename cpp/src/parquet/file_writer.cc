@@ -62,6 +62,8 @@ int64_t RowGroupWriter::total_bytes_written() const {
   return contents_->total_bytes_written();
 }
 
+bool RowGroupWriter::buffered() const { return contents_->buffered(); }
+
 int RowGroupWriter::current_column() { return contents_->current_column(); }
 
 int RowGroupWriter::num_columns() const { return contents_->num_columns(); }
@@ -138,7 +140,8 @@ class RowGroupSerializer : public RowGroupWriter::Contents {
     std::unique_ptr<PageWriter> pager = PageWriter::Open(
         sink_, properties_->compression(path), properties_->compression_level(path),
         col_meta, row_group_ordinal_, static_cast<int16_t>(next_column_index_ - 1),
-        properties_->memory_pool(), false, meta_encryptor, data_encryptor);
+        properties_->memory_pool(), false, meta_encryptor, data_encryptor,
+        properties_->page_checksum_enabled());
     column_writers_[0] = ColumnWriter::Make(col_meta, std::move(pager), properties_);
     return column_writers_[0].get();
   }
@@ -176,6 +179,8 @@ class RowGroupSerializer : public RowGroupWriter::Contents {
     }
     return total_bytes_written;
   }
+
+  bool buffered() const override { return buffered_row_group_; }
 
   void Close() override {
     if (!closed_) {
@@ -245,7 +250,8 @@ class RowGroupSerializer : public RowGroupWriter::Contents {
           sink_, properties_->compression(path), properties_->compression_level(path),
           col_meta, static_cast<int16_t>(row_group_ordinal_),
           static_cast<int16_t>(next_column_index_++), properties_->memory_pool(),
-          buffered_row_group_, meta_encryptor, data_encryptor);
+          buffered_row_group_, meta_encryptor, data_encryptor,
+          properties_->page_checksum_enabled());
       column_writers_.push_back(
           ColumnWriter::Make(col_meta, std::move(pager), properties_));
     }

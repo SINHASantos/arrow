@@ -116,9 +116,8 @@ semi_join.arrow_dplyr_query <- function(x,
                                         y,
                                         by = NULL,
                                         copy = FALSE,
-                                        suffix = c(".x", ".y"),
                                         ...) {
-  do_join(x, y, by, copy, suffix, ..., join_type = "LEFT_SEMI")
+  do_join(x, y, by, copy, suffix = c(".x", ".y"), ..., join_type = "LEFT_SEMI")
 }
 semi_join.Dataset <- semi_join.ArrowTabular <- semi_join.RecordBatchReader <- semi_join.arrow_dplyr_query
 
@@ -126,15 +125,25 @@ anti_join.arrow_dplyr_query <- function(x,
                                         y,
                                         by = NULL,
                                         copy = FALSE,
-                                        suffix = c(".x", ".y"),
                                         ...) {
-  do_join(x, y, by, copy, suffix, ..., join_type = "LEFT_ANTI")
+  do_join(x, y, by, copy, suffix = c(".x", ".y"), ..., join_type = "LEFT_ANTI")
 }
 anti_join.Dataset <- anti_join.ArrowTabular <- anti_join.RecordBatchReader <- anti_join.arrow_dplyr_query
 
 handle_join_by <- function(by, x, y) {
   if (is.null(by)) {
     return(set_names(intersect(names(x), names(y))))
+  }
+  if (inherits(by, "dplyr_join_by")) {
+    if (!all(by$condition == "==" & by$filter == "none")) {
+      abort(
+        paste0(
+          "Inequality conditions and helper functions ",
+          "are not supported in `join_by()` expressions."
+        )
+      )
+    }
+    by <- set_names(by$y, by$x)
   }
   stopifnot(is.character(by))
   if (is.null(names(by))) {

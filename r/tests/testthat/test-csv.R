@@ -664,3 +664,37 @@ test_that("Shows an error message when trying to read a timestamp with time zone
     "CSV conversion error to timestamp\\[ns\\]: expected no zone offset in"
   )
 })
+
+test_that("CSV reading/parsing/convert options can be passed in as lists", {
+  tf <- tempfile()
+  on.exit(unlink(tf))
+
+  writeLines('"x"\nNA\nNA\n"NULL"\n\n"foo"\n', tf)
+
+  tab1 <- read_csv_arrow(
+    tf,
+    convert_options = list(null_values = c("NA", "NULL"), strings_can_be_null = TRUE),
+    parse_options = list(ignore_empty_lines = FALSE),
+    read_options = list(skip_rows = 1L)
+  )
+
+  tab2 <- read_csv_arrow(
+    tf,
+    convert_options = CsvConvertOptions$create(null_values = c(NA, "NA", "NULL"), strings_can_be_null = TRUE),
+    parse_options = CsvParseOptions$create(ignore_empty_lines = FALSE),
+    read_options = CsvReadOptions$create(skip_rows = 1L)
+  )
+
+  expect_equal(tab1, tab2)
+})
+
+test_that("Read literal data directly", {
+  expected <- tibble::tibble(x = c(1L, 3L), y = c(2L, 4L))
+
+  expect_identical(read_csv_arrow(I("x,y\n1,2\n3,4")), expected)
+  expect_identical(read_csv_arrow(I("x,y\r1,2\r3,4")), expected)
+  expect_identical(read_csv_arrow(I("x,y\n\r1,2\n\r3,4")), expected)
+  expect_identical(read_csv_arrow(charToRaw("x,y\n1,2\n3,4")), expected)
+  expect_identical(read_csv_arrow(I(charToRaw("x,y\n1,2\n3,4"))), expected)
+  expect_identical(read_csv_arrow(I(c("x,y", "1,2", "3,4"))), expected)
+})

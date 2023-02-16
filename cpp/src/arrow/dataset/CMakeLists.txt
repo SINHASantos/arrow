@@ -31,6 +31,12 @@ set(ARROW_DATASET_SRCS
     scanner.cc
     scan_node.cc)
 
+if(ARROW_PARQUET)
+  set(ARROW_DATASET_PKG_CONFIG_REQUIRES parquet)
+else()
+  set(ARROW_DATASET_PKG_CONFIG_REQUIRES arrow)
+endif()
+
 set(ARROW_DATASET_STATIC_LINK_LIBS)
 set(ARROW_DATASET_SHARED_LINK_LIBS)
 set(ARROW_DATASET_STATIC_INSTALL_INTERFACE_LIBS)
@@ -38,6 +44,10 @@ set(ARROW_DATASET_SHARED_INSTALL_INTERFACE_LIBS)
 
 if(ARROW_CSV)
   set(ARROW_DATASET_SRCS ${ARROW_DATASET_SRCS} file_csv.cc)
+endif()
+
+if(ARROW_JSON)
+  set(ARROW_DATASET_SRCS ${ARROW_DATASET_SRCS} file_json.cc)
 endif()
 
 if(ARROW_ORC)
@@ -140,6 +150,10 @@ add_arrow_dataset_test(scanner_test)
 
 if(ARROW_CSV)
   add_arrow_dataset_test(file_csv_test)
+endif()
+
+if(ARROW_JSON)
+  add_arrow_dataset_test(file_json_test)
 endif()
 
 if(ARROW_ORC)
